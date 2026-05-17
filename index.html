@@ -334,12 +334,17 @@
 
     function injectMockSymptom(label) {
         if (currentAppState !== 'SCANNING') return;
+        
         if (!recordedSymptoms.has(label)) {
             recordedSymptoms.add(label);
-            captureSnapshot(); 
-            finishScreening(); 
+            
+            // Update the UI so you can see exactly what you have injected so far
+            const currentList = Array.from(recordedSymptoms).join(", ");
+            scanStatus.innerText = `[DEV MOCK] Injected: ${currentList}`;
+            scanStatus.style.color = "#00bcd4"; 
         }
     }
+
 
     // STATIC UPLOAD LOGIC
     document.getElementById('file-upload').addEventListener('change', function(e) {
