@@ -281,13 +281,11 @@
     function triggerCapture() {
         if (currentAppState !== 'SCANNING') return;
 
-        // UI Feedback: Hide button, show analyzing text
         btnCapture.style.display = 'none';
         devControls.style.display = 'none';
         scanStatus.innerText = "Analyzing frame... Please wait.";
         scanStatus.style.color = "#00bcd4";
 
-        // Slight delay allows the browser UI to update the text before the AI locks the CPU
         setTimeout(() => {
             const minVid = Math.min(video.videoWidth, video.videoHeight);
             const cropSize = minVid / currentZoom;
@@ -303,26 +301,26 @@
                 const res = classifier.classify(features);
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+                // THE FIX: Loop through EVERY result the AI found, instead of just the top one!
                 if (res.results && res.results.length > 0) {
-                    const topResult = res.results.reduce((prev, current) => (prev.value > current.value) ? prev : current);
-                    
-                    // Trigger if confidence is above 50% (No debounce needed for static frame!)
-                    if (topResult.value >= 0.5) {
-                        recordedSymptoms.add(topResult.label);
+                    res.results.forEach(result => {
+                        // If the AI is at least 50% sure about THIS specific box, log it and draw it
+                        if (result.value >= 0.5) {
+                            recordedSymptoms.add(result.label);
 
-                        const scaleX = cropSize / modelProps.input_width; 
-                        const scaleY = cropSize / modelProps.input_height;
-                        const scaledX = sx + (topResult.x * scaleX); 
-                        const scaledY = sy + (topResult.y * scaleY);
+                            const scaleX = cropSize / modelProps.input_width; 
+                            const scaleY = cropSize / modelProps.input_height;
+                            const scaledX = sx + (result.x * scaleX); 
+                            const scaledY = sy + (result.y * scaleY);
 
-                        ctx.strokeStyle = '#00FF00'; ctx.lineWidth = Math.max(2, 4 / currentZoom);
-                        ctx.strokeRect(scaledX, scaledY, topResult.width * scaleX, topResult.height * scaleY);
-                        ctx.fillStyle = '#00FF00'; ctx.font = `bold ${Math.floor(24 / currentZoom)}px Arial`;
-                        ctx.fillText(topResult.label, scaledX, scaledY - Math.floor(10 / currentZoom));
-                    }
+                            ctx.strokeStyle = '#00FF00'; ctx.lineWidth = Math.max(2, 4 / currentZoom);
+                            ctx.strokeRect(scaledX, scaledY, result.width * scaleX, result.height * scaleY);
+                            ctx.fillStyle = '#00FF00'; ctx.font = `bold ${Math.floor(24 / currentZoom)}px Arial`;
+                            ctx.fillText(result.label, scaledX, scaledY - Math.floor(10 / currentZoom));
+                        }
+                    });
                 }
 
-                // Proceed to output exactly like the ESP32
                 captureSnapshot();
                 finishScreening();
             } catch (e) {
@@ -387,20 +385,25 @@
             const snapCtx = snapCanvas.getContext('2d');
             snapCtx.drawImage(img, sx, sy, minDim, minDim, 0, 0, 600, 600);
 
+            // THE FIX: Loop through EVERY result for uploaded images too!
             if (res.results && res.results.length > 0) {
-                const topResult = res.results.reduce((prev, current) => (prev.value > current.value) ? prev : current);
-                if (topResult.value >= 0.5) {
-                    recordedSymptoms.add(topResult.label);
-                    const scaleX = 600 / modelProps.input_width;
-                    const scaleY = 600 / modelProps.input_height;
-                    const scaledX = topResult.x * scaleX; const scaledY = topResult.y * scaleY;
+                res.results.forEach(result => {
+                    if (result.value >= 0.5) {
+                        recordedSymptoms.add(result.label);
+                        
+                        const scaleX = 600 / modelProps.input_width;
+                        const scaleY = 600 / modelProps.input_height;
+                        const scaledX = result.x * scaleX; 
+                        const scaledY = result.y * scaleY;
 
-                    snapCtx.strokeStyle = '#00FF00'; snapCtx.lineWidth = 6;
-                    snapCtx.strokeRect(scaledX, scaledY, topResult.width * scaleX, topResult.height * scaleY);
-                    snapCtx.fillStyle = '#00FF00'; snapCtx.font = 'bold 28px Arial';
-                    snapCtx.fillText(topResult.label, scaledX, scaledY - 10);
-                }
+                        snapCtx.strokeStyle = '#00FF00'; snapCtx.lineWidth = 6;
+                        snapCtx.strokeRect(scaledX, scaledY, result.width * scaleX, result.height * scaleY);
+                        snapCtx.fillStyle = '#00FF00'; snapCtx.font = 'bold 28px Arial';
+                        snapCtx.fillText(result.label, scaledX, scaledY - 10);
+                    }
+                });
             }
+            
             lastSnapshotURL = snapCanvas.toDataURL('image/jpeg', 0.9);
             finishScreening(); 
         } catch (e) {
